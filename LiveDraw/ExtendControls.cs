@@ -3,17 +3,17 @@ using System.Windows.Controls;
 using System.Windows.Media.Animation;
 
 namespace AntFu7.LiveDraw {
-	internal class ActivableButton : Button {
-		public static readonly DependencyProperty IsActivedProperty = DependencyProperty.Register(
-			"IsActived",
+	internal class ActivatableButton : Button {
+		public static readonly DependencyProperty IsActivatedProperty = DependencyProperty.Register(
+			nameof(IsActivated),
 			typeof(bool),
-			typeof(ActivableButton),
+			typeof(ActivatableButton),
 			new PropertyMetadata(default(bool))
 		);
 
-		public bool IsActived {
-			get => (bool)GetValue(IsActivedProperty);
-			set => SetValue(IsActivedProperty, value);
+		public bool IsActivated {
+			get => (bool)GetValue(IsActivatedProperty);
+			set => SetValue(IsActivatedProperty, value);
 		}
 	}
 
@@ -25,9 +25,9 @@ namespace AntFu7.LiveDraw {
 		Large
 	}
 
-	internal class ColorPicker : ActivableButton {
+	internal class ColorPicker : ActivatableButton {
 		public static readonly DependencyProperty SizeProperty = DependencyProperty.Register(
-			"Size",
+			nameof(Size),
 			typeof(ColorPickerButtonSize),
 			typeof(ColorPicker),
 			new PropertyMetadata(default(ColorPickerButtonSize), OnColorPickerSizeChanged)
@@ -38,26 +38,15 @@ namespace AntFu7.LiveDraw {
 			set => SetValue(SizeProperty, value);
 		}
 
-		private static void OnColorPickerSizeChanged(
-			DependencyObject dependencyObject,
-			DependencyPropertyChangedEventArgs eventArgs
-		) {
+		private static void OnColorPickerSizeChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs eventArgs) {
 			var v = (ColorPickerButtonSize)eventArgs.NewValue;
-			var obj = dependencyObject as ColorPicker;
-			if (obj == null)
+			if (dependencyObject is not ColorPicker obj)
 				return;
-			var w = 0.0;
-			switch (v) {
-				case ColorPickerButtonSize.Small:
-					w = (double)Application.Current.Resources["ColorPickerSmall"];
-					break;
-				case ColorPickerButtonSize.Middle:
-					w = (double)Application.Current.Resources["ColorPickerMiddle"];
-					break;
-				default:
-					w = (double)Application.Current.Resources["ColorPickerLarge"];
-					break;
-			}
+			double w = v switch {
+				ColorPickerButtonSize.Small  => (double)Application.Current.Resources["ColorPickerSmall"],
+				ColorPickerButtonSize.Middle => (double)Application.Current.Resources["ColorPickerMiddle"],
+				_                            => (double)Application.Current.Resources["ColorPickerLarge"]
+			};
 			obj.BeginAnimation(WidthProperty, new DoubleAnimation(w, (Duration)Application.Current.Resources["Duration3"]));
 		}
 	}
