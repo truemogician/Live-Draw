@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,6 +18,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Brush = System.Windows.Media.Brush;
 using Point = System.Windows.Point;
+using Screen = System.Windows.Forms.Screen;
 
 namespace AntFu7.LiveDraw {
 	public partial class MainWindow: INotifyPropertyChanged {
@@ -85,7 +87,13 @@ namespace AntFu7.LiveDraw {
 			MainInkCanvas.MouseWheel += MainInkCanvas_MouseWheel;
 		}
 
-		private void Exit(object sender, EventArgs e) {
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("Interoperability", "CA1416:Validate platform compatibility", Justification = "<Pending>")]
+		private void MainWindow_Loaded(object sender, RoutedEventArgs e) {
+			AdjustWindowSize();
+			Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (_, _) => AdjustWindowSize();
+        }
+
+        private void Exit(object sender, EventArgs e) {
 			if (IsUnsaved)
 				QuickSave("ExitingAutoSave_");
 
@@ -394,6 +402,21 @@ namespace AntFu7.LiveDraw {
 					break;
 			}
 		}
+
+		private void AdjustWindowSize() {
+			var primaryArea = Screen.PrimaryScreen.WorkingArea;
+            var scaleRatio = Math.Max(
+				primaryArea.Width / SystemParameters.PrimaryScreenWidth,
+				primaryArea.Height / SystemParameters.PrimaryScreenHeight
+			);
+			Left = Screen.AllScreens.Min(s => s.WorkingArea.Left) / scaleRatio;
+			Top = Screen.AllScreens.Min(s => s.WorkingArea.Top) / scaleRatio;
+			Width = Screen.AllScreens.Max(s => s.WorkingArea.Right) / scaleRatio - Left;
+			Height = Screen.AllScreens.Max(s => s.WorkingArea.Bottom) / scaleRatio - Top;
+			
+			Canvas.SetTop(Palette, (primaryArea.Top + primaryArea.Height / 2) / scaleRatio - Top - Palette.ActualHeight / 2);
+			Canvas.SetLeft(Palette, (primaryArea.Left + primaryArea.Width / 2) / scaleRatio - Left - Palette.ActualWidth / 2);
+        }
 		#endregion
 
 		#region /---------Ink---------/

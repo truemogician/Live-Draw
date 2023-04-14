@@ -7,9 +7,9 @@
     x:Class="AntFu7.LiveDraw.MainWindow"
     mc:Ignorable="d"
     DataContext="{Binding RelativeSource={RelativeSource Self}}"
-    ResizeMode="NoResize" UseLayoutRounding="True" WindowStartupLocation="CenterScreen"
-    WindowState="Maximized" Background="{StaticResource FakeTransparent}" AllowsTransparency="True" WindowStyle="None"
-    Title="LiveDraw Dev" Icon="Rescoures/icon.ico" KeyDown="Window_KeyDown">
+    ResizeMode="NoResize" UseLayoutRounding="True" WindowStartupLocation="Manual"
+    Background="{StaticResource FakeTransparent}" AllowsTransparency="True" WindowStyle="None"
+    Title="LiveDraw Dev" Icon="Rescoures/icon.ico" Loaded="MainWindow_Loaded" KeyDown="Window_KeyDown">
     <Window.Resources>
         <SolidColorBrush x:Key="PaintingColor1" Color="#FF86E238" />
         <SolidColorBrush x:Key="PaintingColor2" Color="#FF38E2A8" />
@@ -42,9 +42,8 @@
             </InkCanvas.DefaultDrawingAttributes>
         </InkCanvas>
         <Canvas>
-            <Grid x:Name="Palette" HorizontalAlignment="Left" VerticalAlignment="Top" MouseMove="Palette_MouseMove"
-                  MouseUp="Palette_MouseUp" MouseLeave="Palette_MouseLeave" Canvas.Top="130" Canvas.Left="130"
-                  MinWidth="0">
+            <Grid x:Name="Palette" HorizontalAlignment="Left" VerticalAlignment="Top" 
+                  MouseMove="Palette_MouseMove" MouseUp="Palette_MouseUp" MouseLeave="Palette_MouseLeave">
                 <Grid.RenderTransform>
                     <RotateTransform x:Name="PaletteRotate" CenterX="265" CenterY="100" Angle="0" />
                 </Grid.RenderTransform>
