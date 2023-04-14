@@ -1,9 +1,10 @@
-﻿using System.Windows;
+﻿using System;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Animation;
 
 namespace AntFu7.LiveDraw {
-	internal class ActivatableButton : Button {
+	public class ActivatableButton : Button {
 		public static readonly DependencyProperty IsActivatedProperty = DependencyProperty.Register(
 			nameof(IsActivated),
 			typeof(bool),
@@ -17,7 +18,7 @@ namespace AntFu7.LiveDraw {
 		}
 	}
 
-	internal enum ColorPickerButtonSize {
+	public enum ColorPickerButtonSize {
 		Small,
 
 		Middle,
@@ -25,7 +26,7 @@ namespace AntFu7.LiveDraw {
 		Large
 	}
 
-	internal class ColorPicker : ActivatableButton {
+	public class ColorPicker : ActivatableButton {
 		public static readonly DependencyProperty SizeProperty = DependencyProperty.Register(
 			nameof(Size),
 			typeof(ColorPickerButtonSize),
@@ -42,12 +43,8 @@ namespace AntFu7.LiveDraw {
 			var v = (ColorPickerButtonSize)eventArgs.NewValue;
 			if (dependencyObject is not ColorPicker obj)
 				return;
-			double w = v switch {
-				ColorPickerButtonSize.Small  => (double)Application.Current.Resources["ColorPickerSmall"],
-				ColorPickerButtonSize.Middle => (double)Application.Current.Resources["ColorPickerMiddle"],
-				_                            => (double)Application.Current.Resources["ColorPickerLarge"]
-			};
-			obj.BeginAnimation(WidthProperty, new DoubleAnimation(w, (Duration)Application.Current.Resources["Duration3"]));
+			var width = (double)Application.Current.Resources[$"ColorPicker{Enum.GetName(v)}"];
+			obj.BeginAnimation(WidthProperty, new DoubleAnimation(width, (Duration)Application.Current.Resources["Duration3"]));
 		}
 	}
 }

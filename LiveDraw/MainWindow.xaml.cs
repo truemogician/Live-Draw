@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -17,7 +19,7 @@ using Brush = System.Windows.Media.Brush;
 using Point = System.Windows.Point;
 
 namespace AntFu7.LiveDraw {
-	public partial class MainWindow {
+	public partial class MainWindow: INotifyPropertyChanged {
 		public static int EraseByPointFlag = 0;
 
 		public enum EraseMode {
@@ -44,32 +46,21 @@ namespace AntFu7.LiveDraw {
 
 		private static readonly Duration Duration10 = (Duration)Application.Current.Resources["Duration10"];
 
-		/*#region Mouse Throught
+		public event PropertyChangedEventHandler PropertyChanged;
 
-		private const int WsExTransparent = 0x20;
-		private const int GwlExstyle = (-20);
+		protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null) 
+			=> PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-		[DllImport("user32", EntryPoint = "SetWindowLong")]
-		private static extern uint SetWindowLong(IntPtr hwnd, int nIndex, uint dwNewLong);
-
-		[DllImport("user32", EntryPoint = "GetWindowLong")]
-		private static extern uint GetWindowLong(IntPtr hwnd, int nIndex);
-
-		private void SetThrought(bool t)
-		{
-			var hwnd = new WindowInteropHelper(this).Handle;
-			var extendedStyle = GetWindowLong(hwnd, GwlExstyle);
-			if (t)
-				SetWindowLong(hwnd, GwlExstyle, extendedStyle | WsExTransparent);
-			else
-				SetWindowLong(hwnd, GwlExstyle, extendedStyle & ~(uint)WsExTransparent);
+		protected bool SetField<T>(ref T field, T value, [CallerMemberName] string propertyName = null) {
+			if (EqualityComparer<T>.Default.Equals(field, value))
+				return false;
+			field = value;
+			OnPropertyChanged(propertyName);
+			return true;
 		}
 
-
-		#endregion*/
-
-		#region /---------Lifetime---------/
-		public MainWindow() {
+        #region /---------Lifetime---------/
+        public MainWindow() {
 			if (!mutex.WaitOne(TimeSpan.Zero, true)) {
 				Application.Current.Shutdown(0);
 				return;
@@ -120,10 +111,8 @@ namespace AntFu7.LiveDraw {
 					QuickSave();
 					return true;
 				case MessageBoxResult.No:
-				case MessageBoxResult.None: 
-					return true;
-				default: 
-					return false;
+				case MessageBoxResult.None: return true;
+				default: return false;
 			}
 		}
 		#endregion
@@ -148,8 +137,7 @@ namespace AntFu7.LiveDraw {
 		private bool ShowDetailedPanel {
 			get => _showDetailedPanel;
 			set {
-				if (value)
-				{
+				if (value) {
 					DetailTogglerRotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(180, Duration5));
 					//DefaultColorPicker.Size = ColorPickerButtonSize.Middle;
 					DetailPanel.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Duration4));
@@ -157,8 +145,7 @@ namespace AntFu7.LiveDraw {
 					//MinimizeButton.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Duration3));
 					//MinimizeButton.BeginAnimation(HeightProperty, new DoubleAnimation(0, 25, Duration3));
 				}
-				else
-				{
+				else {
 					DetailTogglerRotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, Duration5));
 					//DefaultColorPicker.Size = ColorPickerButtonSize.Small;
 					DetailPanel.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, Duration4));
@@ -167,7 +154,7 @@ namespace AntFu7.LiveDraw {
 					//MinimizeButton.BeginAnimation(HeightProperty, new DoubleAnimation(25, 0, Duration3));
 				}
 				_showDetailedPanel = value;
-            }
+			}
 		}
 
 		private bool IsInkVisible {
@@ -180,7 +167,7 @@ namespace AntFu7.LiveDraw {
 				HideButton.IsActivated = !value;
 				Enable = value;
 				_isInkVisible = value;
-            }
+			}
 		}
 
 		private bool Enable {
@@ -201,7 +188,7 @@ namespace AntFu7.LiveDraw {
 					SetStaticInfo("Locked");
 					MainInkCanvas.EditingMode = InkCanvasEditingMode.None;//No inking possible
 				}
-            }
+			}
 		}
 
 		private ColorPicker Color {
@@ -220,7 +207,7 @@ namespace AntFu7.LiveDraw {
 				if (_color != null)
 					_color.IsActivated = false;
 				_color = value;
-            }
+			}
 		}
 
 		private bool EraserMode {
@@ -236,7 +223,7 @@ namespace AntFu7.LiveDraw {
 				}
 				else
 					Enable = _enable;
-            }
+			}
 		}
 
 		private bool UseVerticalDisplay {
@@ -249,14 +236,14 @@ namespace AntFu7.LiveDraw {
 				//PaletteFlowPanel.BeginAnimation(WidthProperty, new DoubleAnimation((double)Application.Current.Resources[v ? "VerticalModeFlowPanel" : "HorizontalModeFlowPanel"], Duration3));
 				//ColorPickersPanel.BeginAnimation(WidthProperty, new DoubleAnimation((double)Application.Current.Resources[v ? "VerticalModeColorPickersPanel" : "HorizontalModeColorPickersPanel"], Duration3));
 				_useVerticalDisplay = value;
-            }
+			}
 		}
 
 		private bool TopMost {
 			get => Topmost;
 			set {
 				Topmost = value;
-                PinButton.IsActivated = value;
+				PinButton.IsActivated = value;
 			}
 		}
 
@@ -268,7 +255,7 @@ namespace AntFu7.LiveDraw {
 					_brushIndex += _brushSizes.Length;
 				else if (_brushIndex >= _brushSizes.Length)
 					_brushIndex -= _brushSizes.Length;
-				var size = _brushSizes[_brushIndex];
+				int size = _brushSizes[_brushIndex];
 				if (MainInkCanvas.EditingMode == InkCanvasEditingMode.EraseByPoint) {
 					MainInkCanvas.EditingMode = InkCanvasEditingMode.GestureOnly;
 					MainInkCanvas.EraserShape = new EllipseStylusShape(size, size);
@@ -280,7 +267,7 @@ namespace AntFu7.LiveDraw {
 					BrushPreview?.BeginAnimation(HeightProperty, new DoubleAnimation(size, Duration4));
 					BrushPreview?.BeginAnimation(WidthProperty, new DoubleAnimation(size, Duration4));
 				}
-            }
+			}
 		}
 		#endregion
 
@@ -484,9 +471,25 @@ namespace AntFu7.LiveDraw {
 			Display("Cleared");
 			MainInkCanvas.BeginAnimation(OpacityProperty, new DoubleAnimation(1, Duration3));
 		}
-		#endregion
+        #endregion
 
-		#region /---------UI---------/
+        #region /---------UI---------/
+		private ColorPickerButtonSize _colorPickerSize = ColorPickerButtonSize.Small;
+
+        public ColorPickerButtonSize ColorPickerSize {
+			get => _colorPickerSize;
+			set {
+				if (_colorPickerSize == value)
+					return;
+				SetField(ref _colorPickerSize, value);
+				OnPropertyChanged(nameof(ColorPickerRadius));
+			}
+		}
+
+
+
+		public double ColorPickerRadius => (double)Application.Current.Resources[$"ColorPicker{Enum.GetName(ColorPickerSize)}"] / 2;
+
 		private void DetailToggler_Click(object sender, RoutedEventArgs e) => ShowDetailedPanel = !ShowDetailedPanel;
 
 		private void CloseButton_Click(object sender, RoutedEventArgs e) {
@@ -696,7 +699,7 @@ namespace AntFu7.LiveDraw {
 						case DockingDirection.Right:
 							RightDocking();
 							break;
-						case DockingDirection.Top:   
+						case DockingDirection.Top:
 							TopDocking();
 							break;
 					}
@@ -781,10 +784,10 @@ namespace AntFu7.LiveDraw {
 					break;
 			}
 		}
-        #endregion
+		#endregion
 
-        #region /---------Line Mode---------/
-        private bool _isMoving;
+		#region /---------Line Mode---------/
+		private bool _isMoving;
 
 		private bool _lineMode;
 
@@ -798,8 +801,7 @@ namespace AntFu7.LiveDraw {
 				if (!Enable)
 					return;
 				_lineMode = value;
-				if (_lineMode)
-				{
+				if (_lineMode) {
 					EraseByPointFlag = (int)EraseMode.EraserByPoint;
 					EraserFunction();
 					EraserMode = false;
@@ -811,7 +813,7 @@ namespace AntFu7.LiveDraw {
 				}
 				else
 					Enable = true;
-            }
+			}
 		}
 
 		private void StartLine(object sender, MouseButtonEventArgs e) {
@@ -823,7 +825,7 @@ namespace AntFu7.LiveDraw {
 
 		private void EndLine(object sender, MouseButtonEventArgs e) {
 			if (_isMoving) {
-				var endPoint = e.GetPosition(MainInkCanvas);
+				e.GetPosition(MainInkCanvas);
 				if (_lastStroke != null) {
 					var collection = new StrokeCollection { _lastStroke };
 					Push(_history, new StrokesHistoryNode(collection, StrokesHistoryNodeType.Added));
