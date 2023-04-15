@@ -12,18 +12,18 @@
 
             <Color x:Key="FakeTransparentColor">#01000000</Color>
             <Color x:Key="TrueTransparentColor">Transparent</Color>
-            <Color x:Key="QuartertransparentGrayColor">#3F727272</Color>
-            <Color x:Key="SemitransparentGrayColor">#7F727272</Color>
-            <Color x:Key="TriquartertransparentGrayColor">#3F727272</Color>
+            <Color x:Key="QuarterTransparentGrayColor">#3F727272</Color>
+            <Color x:Key="SemiTransparentGrayColor">#7F727272</Color>
+            <Color x:Key="TriquarterTransparentGrayColor">#3F727272</Color>
             <Color x:Key="FunctionalButtonBackgroundColor">#7F000000</Color>
             <Color x:Key="FunctionalButtonHoverColor">#7F212121</Color>
             <Color x:Key="FunctionalButtonActiveColor">#7F515151</Color>
 
             <SolidColorBrush x:Key="FakeTransparent" Color="{StaticResource FakeTransparentColor}" />
             <SolidColorBrush x:Key="TrueTransparent" Color="{StaticResource TrueTransparentColor}" />
-            <SolidColorBrush x:Key="QuartertransparentGray" Color="{StaticResource QuartertransparentGrayColor}" />
-            <SolidColorBrush x:Key="SemitransparentGray" Color="{StaticResource SemitransparentGrayColor}" />
-            <SolidColorBrush x:Key="TriquartertransparentGray" Color="{StaticResource TriquartertransparentGrayColor}" />
+            <SolidColorBrush x:Key="QuarterTransparentGray" Color="{StaticResource QuarterTransparentGrayColor}" />
+            <SolidColorBrush x:Key="SemiTransparentGray" Color="{StaticResource SemiTransparentGrayColor}" />
+            <SolidColorBrush x:Key="TriquarterTransparentGray" Color="{StaticResource TriquarterTransparentGrayColor}" />
             <SolidColorBrush x:Key="FunctionalButtonBackground"
                              Color="{StaticResource FunctionalButtonBackgroundColor}" />
             <SolidColorBrush x:Key="FunctionalButtonHover" Color="{StaticResource FunctionalButtonHoverColor}" />
@@ -165,7 +165,6 @@
                     </Trigger>
                 </Style.Triggers>
             </Style>
-
             <Style x:Key="ColorPicker" TargetType="LiveDraw:ColorPicker">
                 <Setter Property="Cursor" Value="Pen" />
                 <Setter Property="Width" Value="{StaticResource ColorPickerSmall}" />
@@ -224,7 +223,7 @@
             </Style>
             <ControlTemplate x:Key="ResponseButtonTemplate" TargetType="Button">
                 <Grid Background="{StaticResource FakeTransparent}">
-                    <Border x:Name="Backborder" Background="{TemplateBinding Background}" CornerRadius="5" Width="0"
+                    <Border x:Name="BackBorder" Background="{TemplateBinding Background}" CornerRadius="5" Width="0"
                             Height="{Binding Path=Width,RelativeSource={RelativeSource Self}}"
                             HorizontalAlignment="Center" VerticalAlignment="Center" />
                     <ContentControl Content="{TemplateBinding Content}"
@@ -235,7 +234,7 @@
                         <Trigger.EnterActions>
                             <BeginStoryboard>
                                 <Storyboard>
-                                    <DoubleAnimation Storyboard.TargetName="Backborder"
+                                    <DoubleAnimation Storyboard.TargetName="BackBorder"
                                                      Storyboard.TargetProperty="Width" From="0" To="20"
                                                      Duration="{StaticResource Duration3}" />
                                 </Storyboard>
@@ -244,7 +243,7 @@
                         <Trigger.ExitActions>
                             <BeginStoryboard>
                                 <Storyboard>
-                                    <DoubleAnimation Storyboard.TargetName="Backborder"
+                                    <DoubleAnimation Storyboard.TargetName="BackBorder"
                                                      Storyboard.TargetProperty="Width" From="20" To="0"
                                                      Duration="{StaticResource Duration3}" />
                                 </Storyboard>

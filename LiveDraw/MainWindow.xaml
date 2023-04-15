@@ -35,7 +35,7 @@
     </Window.Resources>
     <Grid>
         <InkCanvas x:Name="MainInkCanvas" Background="{x:Null}" MoveEnabled="False" ResizeEnabled="False" Cursor="Pen"
-                   Margin="0,0,0,-0.333" EditingModeInverted="EraseByPoint">
+                   Margin="0,0,0,-0.333" EditingMode="None" EditingModeInverted="EraseByPoint">
             <InkCanvas.DefaultDrawingAttributes>
                 <DrawingAttributes Color="#FFFF5656" FitToCurve="True" Height="5" IgnorePressure="False"
                                    IsHighlighter="False" StylusTip="Ellipse" StylusTipTransform="Identity" Width="5" />
@@ -53,7 +53,7 @@
                 <Grid>
                     <Grid.Resources>
                         <Style TargetType="Border">
-                            <Setter Property="Background" Value="{StaticResource QuartertransparentGray}" />
+                            <Setter Property="Background" Value="{StaticResource QuarterTransparentGray}" />
                             <Style.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Trigger.EnterActions>
@@ -206,11 +206,6 @@
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
-                            <Slider Background="{StaticResource FakeTransparent}" Minimum="1"
-                                    ValueChanged="Slider_ValueChanged" IsMoveToPointEnabled="True"
-                                    IsSelectionRangeEnabled="True" Focusable="False" Maximum="5"
-                                    Template="{StaticResource SliderHorizontal}" Foreground="#FFBC1919" Value="2"
-                                    Height="20" Visibility="Collapsed" />
                             <WrapPanel x:Name="ButtonPanel" HorizontalAlignment="Center">
                                 <WrapPanel.Resources>
                                     <Style TargetType="local:ActivatableButton" BasedOn="{StaticResource FunctionalButton}">
@@ -219,7 +214,7 @@
                                         <Setter Property="Height" Value="32" />
                                         <Setter Property="RenderTransform">
                                             <Setter.Value>
-                                                <RotateTransform CenterX="16" CenterY="16" Angle="{Binding MinWidth, ElementName=Palette}" />
+                                                <RotateTransform CenterX="16" CenterY="15" Angle="{Binding MinWidth, ElementName=Palette}" />
                                             </Setter.Value>
                                         </Setter>
                                     </Style>
@@ -228,7 +223,10 @@
                                     <Border x:Name="BrushPreview" Width="5" Height="5" Background="#FFD6D6D6"
                                             CornerRadius="10" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </local:ActivatableButton>
-                                <local:ActivatableButton x:Name="LineButton" ToolTip="Line Mode" Click="LineButton_Click">
+                                <local:ActivatableButton IsEnabled="{Binding EnableDrawing}"
+                                                         IsActivated="{Binding LineMode, Mode=TwoWay}"
+                                                         ToolTip="Line Mode"
+                                                         Click="ToggleButton_Click">
                                     <Path Data="{DynamicResource IconMinimize}" RenderTransformOrigin="0.5,0.5"
                                           Height="3" Stretch="Fill" Width="15">
                                         <Path.RenderTransform>
@@ -236,29 +234,32 @@
                                         </Path.RenderTransform>
                                     </Path>
                                 </local:ActivatableButton>
-                                <local:ActivatableButton x:Name="UndoButton" Click="UndoButton_Click" ToolTip="Undo (Z)">
+                                <local:ActivatableButton x:Name="EraserButton" 
+                                                         IsEnabled="{Binding EnableDrawing}"
+                                                         IsActivated="{Binding EraserMode, Mode=TwoWay}"
+                                                         ToolTip="Toggle eraser mode (E)"
+                                                         Click="ToggleButton_Click" >
+                                    <Path Data="{DynamicResource IconEraser}" />
+                                </local:ActivatableButton>
+                                <local:ActivatableButton IsEnabled="{Binding CanUndo}" ToolTip="Undo (Z)" Click="UndoButton_Click">
                                     <Path Data="{DynamicResource IconUndo}" />
                                 </local:ActivatableButton>
-                                <local:ActivatableButton x:Name="RedoButton" ToolTip="Redo (Y)" Click="RedoButton_Click">
+                                <local:ActivatableButton IsEnabled="{Binding CanRedo}" ToolTip="Redo (Y)" Click="RedoButton_Click">
                                     <Path Data="{DynamicResource IconUndo}" RenderTransformOrigin="0.5,0.5">
                                         <Path.RenderTransform>
                                             <ScaleTransform ScaleX="-1" />
                                         </Path.RenderTransform>
                                     </Path>
                                 </local:ActivatableButton>
-                                <local:ActivatableButton x:Name="EraserButton" Click="EraserButton_Click" ToolTip="Toggle eraser mode (E)">
-                                    <Path Data="{DynamicResource IconEraser}" />
-                                </local:ActivatableButton>
                                 <local:ActivatableButton x:Name="ClearButton" Click="ClearButton_Click" ToolTip="Clear screen">
-                                    <Path Data="{DynamicResource IconTrashBox}" Width="13" />
+                                    <Path Data="{DynamicResource IconTrashBox}" />
                                 </local:ActivatableButton>
                                 <local:ActivatableButton x:Name="SaveButton" Click="SaveButton_Click"
                                                          ToolTip="Quick save / Right click to save to file"
                                                          PreviewMouseRightButtonDown="SaveButton_RightClick">
                                     <Path Data="{DynamicResource IconSave}" Width="13" />
                                 </local:ActivatableButton>
-                                <local:ActivatableButton x:Name="LoadButton" Click="LoadButton_Click"
-                                                       ToolTip="Load ink from file">
+                                <local:ActivatableButton x:Name="LoadButton" ToolTip="Load ink from file" Click="LoadButton_Click">
                                     <Path Data="{DynamicResource IconLoad}" Width="14" />
                                 </local:ActivatableButton>
                                 <local:ActivatableButton x:Name="ExportButton"
@@ -267,17 +268,19 @@
                                                        PreviewMouseRightButtonDown="ExportButton_RightClick">
                                     <Path Data="{DynamicResource IconExport}" />
                                 </local:ActivatableButton>
-                                <local:ActivatableButton x:Name="EnableButton" Click="EnableButton_Click"
-                                                         ToolTip="Release/Recover the control of drawing">
-                                    <Path Data="{DynamicResource IconNoAccess}" />
+                                <local:ActivatableButton
+                                    IsActivated="{Binding EnableDrawing, Mode=TwoWay}"
+                                    ToolTip="Release/Recover the control of drawing"
+                                    Click="ToggleButton_Click">
+                                    <Path Data="{DynamicResource IconNoAccess}"/>
                                 </local:ActivatableButton>
-                                <local:ActivatableButton x:Name="HideButton" ToolTip="Hide ink" Click="HideButton_Click">
+                                <local:ActivatableButton IsActivated="{Binding HideInk, Mode=TwoWay}" ToolTip="Hide ink" Click="ToggleButton_Click">
                                     <Path Data="{DynamicResource IconCloseEye}" />
                                 </local:ActivatableButton>
-                                <local:ActivatableButton x:Name="PinButton" ToolTip="Topmost" Click="PinButton_Click">
+                                <local:ActivatableButton IsActivated="{Binding Topmost, Mode=TwoWay}" ToolTip="Topmost" Click="ToggleButton_Click">
                                     <Path Data="{DynamicResource IconPin}" Width="13" />
                                 </local:ActivatableButton>
-                                <local:ActivatableButton x:Name="OrientationButton" Click="OrientationButton_Click" ToolTip="Rotate dock">
+                                <local:ActivatableButton IsActivated="{Binding UseVerticalDisplay, Mode=TwoWay}" ToolTip="Rotate dock" Click="ToggleButton_Click">
                                     <Path Data="{DynamicResource IconMinimize}" RenderTransformOrigin="0.5,0.5">
                                         <Path.RenderTransform>
                                             <RotateTransform Angle="90" />

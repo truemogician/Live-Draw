@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -20,19 +21,15 @@ using Brush = System.Windows.Media.Brush;
 using Point = System.Windows.Point;
 using Screen = System.Windows.Forms.Screen;
 
-namespace AntFu7.LiveDraw; 
+namespace AntFu7.LiveDraw;
+
+public enum PenMode : byte {
+	Arbitrary,
+
+	Line
+}
 
 public partial class MainWindow: INotifyPropertyChanged {
-	private static int EraseByPointFlag;
-
-	public enum EraseMode {
-		None = 0,
-
-		Eraser = 1,
-
-		EraserByPoint = 2
-	}
-
 	private static readonly Mutex mutex = new(true, "LiveDraw");
 
 	private static readonly Duration Duration1 = (Duration)Application.Current.Resources["Duration1"];
@@ -68,16 +65,34 @@ public partial class MainWindow: INotifyPropertyChanged {
 			Application.Current.Shutdown(0);
 			return;
 		}
-		_history = new Stack<StrokesHistoryNode>();
-		_redoHistory = new Stack<StrokesHistoryNode>();
+		_history = new ObservableStack<StrokesHistoryNode>();
+		_redoHistory = new ObservableStack<StrokesHistoryNode>();
+		void OnCollectionChanged(object sender, NotifyCollectionChangedEventArgs args) {
+			if (sender is not ObservableStack<StrokesHistoryNode> stack)
+				throw new InvalidOperationException("Unexpected sender");
+			switch (args.Action) {
+				case NotifyCollectionChangedAction.Add when args.NewItems?.Count == stack.Count:
+				case NotifyCollectionChangedAction.Remove when stack.Count == 0:
+				case NotifyCollectionChangedAction.Reset: {
+					if (stack.Equals(_history))
+						OnPropertyChanged(nameof(CanUndo));
+					else if (stack.Equals(_redoHistory))
+						OnPropertyChanged(nameof(CanRedo));
+					break;
+				}
+			}
+		}
+		_history.CollectionChanged += OnCollectionChanged;
+		_redoHistory.CollectionChanged += OnCollectionChanged;
+
 		if (!Directory.Exists("Save"))
 			Directory.CreateDirectory("Save");
 
 		InitializeComponent();
 		Color = DefaultColorPicker;
-		Enable = false;
+		EnableDrawing = false;
 		ShowDetailedPanel = true;
-		TopMost = true;
+		Topmost = true;
 		BrushIndex = 1;
 		DetailPanel.Opacity = 0;
 
@@ -128,13 +143,13 @@ public partial class MainWindow: INotifyPropertyChanged {
 	#region /---------Setter---------/
 	private ColorPicker _color;
 
-	private bool _isInkVisible = true;
+	private bool _hideInk = true;
 
 	private bool _showDetailedPanel;
 
 	private bool _eraserMode;
 
-	private bool _enable;
+	private bool _enableDrawing;
 
 	private static readonly int[] _brushSizes = { 3, 5, 8, 13, 20 };
 
@@ -157,36 +172,31 @@ public partial class MainWindow: INotifyPropertyChanged {
 		}
 	}
 
-	private bool IsInkVisible {
-		get => _isInkVisible;
+	public bool HideInk {
+		get => _hideInk;
 		set {
+			if (_hideInk == value)
+				return;
+			SetField(ref _hideInk, value);
 			MainInkCanvas.BeginAnimation(
 				OpacityProperty,
 				value ? new DoubleAnimation(0, 1, Duration3) : new DoubleAnimation(1, 0, Duration3)
 			);
-			HideButton.IsActivated = !value;
-			Enable = value;
-			_isInkVisible = value;
 		}
 	}
 
-	private bool Enable {
-		get => _enable;
+	public bool EnableDrawing {
+		get => _enableDrawing;
 		set {
-			EnableButton.IsActivated = !value;
+			if (_enableDrawing == value)
+				return;
 			Background = Application.Current.Resources[value ? "FakeTransparent" : "TrueTransparent"] as Brush;
-			_enable = value;
-			MainInkCanvas.UseCustomCursor = false;
-
-			if (_enable) {
-				LineButton.IsActivated = false;
-				EraserButton.IsActivated = false;
-				SetStaticInfo("LiveDraw");
-				MainInkCanvas.EditingMode = InkCanvasEditingMode.Ink;
-			}
+			SetField(ref _enableDrawing, value);
+			if (value)
+				SyncStatus();
 			else {
-				SetStaticInfo("Locked");
-				MainInkCanvas.EditingMode = InkCanvasEditingMode.None;//No inking possible
+				StaticInfo = "Locked";
+				MainInkCanvas.EditingMode = InkCanvasEditingMode.None;
 			}
 		}
 	}
@@ -196,12 +206,10 @@ public partial class MainWindow: INotifyPropertyChanged {
 		set {
 			if (ReferenceEquals(_color, value))
 				return;
-			if (value.Background is not SolidColorBrush solidColorBrush)
+			if (value.Background is not SolidColorBrush brush)
 				return;
-
-			var ani = new ColorAnimation(solidColorBrush.Color, Duration3);
-
-			MainInkCanvas.DefaultDrawingAttributes.Color = solidColorBrush.Color;
+			var ani = new ColorAnimation(brush.Color, Duration3);
+			MainInkCanvas.DefaultDrawingAttributes.Color = brush.Color;
 			BrushPreview.Background.BeginAnimation(SolidColorBrush.ColorProperty, ani);
 			value.IsActivated = true;
 			if (_color != null)
@@ -210,36 +218,30 @@ public partial class MainWindow: INotifyPropertyChanged {
 		}
 	}
 
-	private bool EraserMode {
+	public bool EraserMode {
 		get => _eraserMode;
 		set {
-			EraserButton.IsActivated = value;
-			_eraserMode = value;
-			MainInkCanvas.UseCustomCursor = false;
-
-			if (_eraserMode) {
-				MainInkCanvas.EditingMode = InkCanvasEditingMode.EraseByStroke;
-				SetStaticInfo("Eraser Mode");
-			}
+			if (_eraserMode == value)
+				return;
+			SetField(ref _eraserMode, value);
+			if (value) {
+				StaticInfo = "Eraser Mode";
+				MainInkCanvas.UseCustomCursor = false;
+                MainInkCanvas.EditingMode = InkCanvasEditingMode.EraseByStroke;
+            }
 			else
-				Enable = _enable;
+				SyncStatus();
 		}
 	}
 
-	private bool UseVerticalDisplay {
+	public bool UseVerticalDisplay {
 		get => _useVerticalDisplay;
 		set {
+			if (_useVerticalDisplay == value)
+				return;
+			SetField(ref _useVerticalDisplay, value);
 			PaletteRotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(value ? -90 : 0, Duration4));
 			Palette.BeginAnimation(MinWidthProperty, new DoubleAnimation(value ? 90 : 0, Duration7));
-			_useVerticalDisplay = value;
-		}
-	}
-
-	private bool TopMost {
-		get => Topmost;
-		set {
-			Topmost = value;
-			PinButton.IsActivated = value;
 		}
 	}
 
@@ -325,26 +327,25 @@ public partial class MainWindow: INotifyPropertyChanged {
 
 	private bool _displayingInfo;
 
-	private async void Display(string info) {
+	private string StaticInfo {
+		get => _staticInfo;
+		set {
+			_staticInfo = value;
+			if (!_displayingInfo)
+				InfoBox.Text = value;
+		}
+	}
+
+	private void Display(string info, int duration = 2000) {
 		InfoBox.Text = info;
 		_displayingInfo = true;
-		await InfoDisplayTimeUp(new Progress<string>(box => InfoBox.Text = box));
-	}
-
-	private Task InfoDisplayTimeUp(IProgress<string> box) {
-		return Task.Run(
-			() => {
-				Task.Delay(2000).Wait();
-				box.Report(_staticInfo);
+		Dispatcher.InvokeAsync(
+			async () => {
+				await Task.Delay(duration);
 				_displayingInfo = false;
-			}
+				InfoBox.Text = StaticInfo;
+            }
 		);
-	}
-
-	private void SetStaticInfo(string info) {
-		_staticInfo = info;
-		if (!_displayingInfo)
-			InfoBox.Text = _staticInfo;
 	}
 
 	private static Stream SaveDialog(string initFileName, string fileExt = ".fdw", string filter = "Free Draw Save (*.fdw)|*fdw") {
@@ -358,36 +359,28 @@ public partial class MainWindow: INotifyPropertyChanged {
 	}
 
 	private static Stream OpenDialog(string fileExt = ".fdw", string filter = "Free Draw Save (*.fdw)|*fdw") {
-		var dialog = new Microsoft.Win32.OpenFileDialog() {
+		var dialog = new Microsoft.Win32.OpenFileDialog {
 			DefaultExt = fileExt,
 			Filter = filter
 		};
 		return dialog.ShowDialog() == true ? dialog.OpenFile() : Stream.Null;
 	}
 
-	private void EraserFunction() {
-		LineMode = false;
-		switch (EraseByPointFlag) {
-			case (int)EraseMode.None:
-				EraserMode = !EraserMode;
-				EraserButton.ToolTip = "Toggle eraser (by point) mode (D)";
-				EraseByPointFlag = (int)EraseMode.Eraser;
-				break;
-			case (int)EraseMode.Eraser: {
-				EraserButton.IsActivated = true;
-				SetStaticInfo("Eraser Mode (Point)");
-				EraserButton.ToolTip = "Toggle eraser - OFF";
-				double s = MainInkCanvas.EraserShape.Height;
-				MainInkCanvas.EraserShape = new EllipseStylusShape(s, s);
-				MainInkCanvas.EditingMode = InkCanvasEditingMode.EraseByPoint;
-				EraseByPointFlag = (int)EraseMode.EraserByPoint;
-				break;
-			}
-			case (int)EraseMode.EraserByPoint:
-				EraserMode = !EraserMode;
-				EraserButton.ToolTip = "Toggle eraser mode (E)";
-				EraseByPointFlag = (int)EraseMode.None;
-				break;
+	private void SyncStatus() {
+		if (EraserMode) {
+			StaticInfo = "Eraser Mode";
+			MainInkCanvas.EditingMode = InkCanvasEditingMode.EraseByStroke;
+			MainInkCanvas.UseCustomCursor = false;
+		}
+		else if (PenMode == PenMode.Arbitrary) {
+			StaticInfo = "Draw Mode";
+			MainInkCanvas.EditingMode = InkCanvasEditingMode.Ink;
+			MainInkCanvas.UseCustomCursor = false;
+		}
+		else {
+			StaticInfo =$"{Enum.GetName(PenMode)} Mode";
+			MainInkCanvas.EditingMode = InkCanvasEditingMode.None;
+			MainInkCanvas.UseCustomCursor = true;
 		}
 	}
 
@@ -408,63 +401,62 @@ public partial class MainWindow: INotifyPropertyChanged {
 	#endregion
 
 	#region /---------Ink---------/
-	private readonly Stack<StrokesHistoryNode> _history;
+	private readonly ObservableStack<StrokesHistoryNode> _history;
 
-	private readonly Stack<StrokesHistoryNode> _redoHistory;
+	private readonly ObservableStack<StrokesHistoryNode> _redoHistory;
 
 	private bool _ignoreStrokesChange;
 
-	private void Undo() {
-		if (!CanUndo())
+	public bool CanUndo => _history.Count != 0;
+
+	public bool CanRedo => _redoHistory.Count != 0;
+
+    private void Undo() {
+		if (!CanUndo)
 			return;
-		var last = Pop(_history);
+		var last = _history.Pop();
 		_ignoreStrokesChange = true;
 		if (last.Type == StrokesHistoryNodeType.Added)
 			MainInkCanvas.Strokes.Remove(last.Strokes);
 		else
 			MainInkCanvas.Strokes.Add(last.Strokes);
 		_ignoreStrokesChange = false;
-		Push(_redoHistory, last);
+		_redoHistory.Push(last);
 	}
 
 	private void Redo() {
-		if (!CanRedo())
+		if (!CanRedo)
 			return;
-		var last = Pop(_redoHistory);
+		var last = _redoHistory.Pop();
 		_ignoreStrokesChange = true;
 		if (last.Type == StrokesHistoryNodeType.Removed)
 			MainInkCanvas.Strokes.Remove(last.Strokes);
 		else
 			MainInkCanvas.Strokes.Add(last.Strokes);
 		_ignoreStrokesChange = false;
-		Push(_history, last);
+		_history.Push(last);
 	}
-
-	private static void Push(Stack<StrokesHistoryNode> collection, StrokesHistoryNode node) => collection.Push(node);
-
-	private static StrokesHistoryNode Pop(Stack<StrokesHistoryNode> collection) => collection.Count == 0 ? null : collection.Pop();
-
-	private bool CanUndo() => _history.Count != 0;
-
-	private bool CanRedo() => _redoHistory.Count != 0;
 
 	private void StrokesChanged(object sender, StrokeCollectionChangedEventArgs e) {
 		if (_ignoreStrokesChange)
 			return;
 		_saved = false;
-		if (e.Added.Count != 0)
-			Push(_history, new StrokesHistoryNode(e.Added, StrokesHistoryNodeType.Added));
+		var oldStatus = (CanUndo, CanRedo);
+        if (e.Added.Count != 0)
+			_history.Push(new StrokesHistoryNode(e.Added, StrokesHistoryNodeType.Added));
 		if (e.Removed.Count != 0)
-			Push(_history, new StrokesHistoryNode(e.Removed, StrokesHistoryNodeType.Removed));
-		ClearHistory(_redoHistory);
+			_history.Push(new StrokesHistoryNode(e.Removed, StrokesHistoryNodeType.Removed));
+		_redoHistory.Clear();
+		if (CanUndo != oldStatus.CanUndo)
+			OnPropertyChanged(nameof(CanUndo));
+		if (CanRedo != oldStatus.CanRedo)
+			OnPropertyChanged(nameof(CanRedo));
 	}
 
 	private void ClearHistory() {
-		ClearHistory(_history);
-		ClearHistory(_redoHistory);
+		_history.Clear();
+		_redoHistory.Clear();
 	}
-
-	private static void ClearHistory(Stack<StrokesHistoryNode> collection) => collection?.Clear();
 
 	private void Clear() {
 		MainInkCanvas.Strokes.Clear();
@@ -497,8 +489,6 @@ public partial class MainWindow: INotifyPropertyChanged {
 		}
 	}
 
-
-
 	public double ColorPickerRadius => (double)Application.Current.Resources[$"ColorPicker{Enum.GetName(ColorPickerSize)}"] / 2;
 
 	private void DetailToggler_Click(object sender, RoutedEventArgs e) => ShowDetailedPanel = !ShowDetailedPanel;
@@ -514,16 +504,8 @@ public partial class MainWindow: INotifyPropertyChanged {
 		if (sender is not ColorPicker border)
 			return;
 		Color = border;
-
-		if (EraseByPointFlag != (int)EraseMode.None) {
+		if (EraserMode)
 			EraserMode = false;
-			EraseByPointFlag = (int)EraseMode.None;
-			EraserButton.ToolTip = "Toggle eraser mode (E)";
-		}
-	}
-
-	private void Slider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e) {
-		//SetBrushSize(e.NewValue);
 	}
 
 	private void MainInkCanvas_MouseWheel(object sender, MouseWheelEventArgs e) {
@@ -533,22 +515,18 @@ public partial class MainWindow: INotifyPropertyChanged {
 			++BrushIndex;
 	}
 
-	private void BrushSwitchButton_Click(object sender, RoutedEventArgs e) => ++BrushIndex;
+	private void ToggleButton_Click(object sender, RoutedEventArgs e) {
+		if (sender is ActivatableButton btn)
+			btn.IsActivated = !btn.IsActivated;
+	}
 
-	private void LineButton_Click(object sender, RoutedEventArgs e) => LineMode = !LineMode;
+    private void BrushSwitchButton_Click(object sender, RoutedEventArgs e) => ++BrushIndex;
 
 	private void UndoButton_Click(object sender, RoutedEventArgs e) => Undo();
 
 	private void RedoButton_Click(object sender, RoutedEventArgs e) => Redo();
 
-	private void EraserButton_Click(object sender, RoutedEventArgs e) {
-		if (Enable)
-			EraserFunction();
-	}
-
 	private void ClearButton_Click(object sender, RoutedEventArgs e) => AnimatedClear();
-
-	private void PinButton_Click(object sender, RoutedEventArgs e) => TopMost = !TopMost;
 
 	private void SaveButton_Click(object sender, RoutedEventArgs e) {
 		if (MainInkCanvas.Strokes.Count == 0) {
@@ -637,19 +615,6 @@ public partial class MainWindow: INotifyPropertyChanged {
 	}
 
 	private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-
-	private void HideButton_Click(object sender, RoutedEventArgs e) => IsInkVisible = !IsInkVisible;
-
-	private void EnableButton_Click(object sender, RoutedEventArgs e) {
-		Enable = !Enable;
-		if (_eraserMode) {
-			EraserMode = !EraserMode;
-			EraserButton.ToolTip = "Toggle eraser mode (E)";
-			EraseByPointFlag = (int)EraseMode.None;
-		}
-	}
-
-	private void OrientationButton_Click(object sender, RoutedEventArgs e) => UseVerticalDisplay = !UseVerticalDisplay;
 	#endregion
 
 	#region /---------Docking---------/
@@ -728,13 +693,13 @@ public partial class MainWindow: INotifyPropertyChanged {
 		_lastMousePosition = Mouse.GetPosition(this);
 		_isDragging = true;
 		Palette.Background = new SolidColorBrush(Colors.Transparent);
-		_tempEnable = Enable;
-		Enable = true;
+		_tempEnable = EnableDrawing;
+		EnableDrawing = true;
 	}
 
 	private void EndDrag() {
 		if (_isDragging)
-			Enable = _tempEnable;
+			EnableDrawing = _tempEnable;
 		_isDragging = false;
 		Palette.Background = null;
 	}
@@ -761,8 +726,8 @@ public partial class MainWindow: INotifyPropertyChanged {
 	#region /---------Shortcuts--------/
 	private void Window_KeyDown(object sender, KeyEventArgs e) {
 		if (e.Key == Key.R)
-			Enable = !Enable;
-		if (!Enable)
+			EnableDrawing = !EnableDrawing;
+		if (!EnableDrawing)
 			return;
 
 		switch (e.Key) {
@@ -773,16 +738,12 @@ public partial class MainWindow: INotifyPropertyChanged {
 				Redo();
 				break;
 			case Key.E:
-				EraserFunction();
+				EraserMode = true;
 				break;
 			case Key.B:
-				if (_eraserMode)
-					EraserMode = false;
-				Enable = true;
+				EnableDrawing = true;
 				break;
 			case Key.L:
-				if (_eraserMode)
-					EraserMode = false;
 				LineMode = true;
 				break;
 			case Key.Add:
@@ -796,32 +757,35 @@ public partial class MainWindow: INotifyPropertyChanged {
 	#endregion
 
 	#region /---------Line Mode---------/
-	private bool _isMoving;
+	private PenMode _penMode = PenMode.Arbitrary;
 
-	private bool _lineMode;
+	private bool _isMoving;
 
 	private Point _startPoint;
 
 	private Stroke _lastStroke;
 
-	private bool LineMode {
-		get => _lineMode;
+	public PenMode PenMode {
+		get => _penMode;
 		set {
-			if (!Enable)
+			if (_penMode == value)
 				return;
-			_lineMode = value;
-			if (_lineMode) {
-				EraseByPointFlag = (int)EraseMode.EraserByPoint;
-				EraserFunction();
+			var oldValue = _penMode;
+			SetField(ref _penMode, value);
+			if (value == PenMode.Line || oldValue == PenMode.Line)
+				OnPropertyChanged(nameof(LineMode));
+			SyncStatus();
+		}
+	}
+
+	public bool LineMode {
+		get => PenMode == PenMode.Line;
+		set {
+			if (LineMode == value)
+				return;
+			PenMode = value ? PenMode.Line : PenMode.Arbitrary;
+			if (value)
 				EraserMode = false;
-				EraserButton.IsActivated = false;
-				LineButton.IsActivated = value;
-				SetStaticInfo("LineMode");
-				MainInkCanvas.EditingMode = InkCanvasEditingMode.None;
-				MainInkCanvas.UseCustomCursor = true;
-			}
-			else
-				Enable = true;
 		}
 	}
 
@@ -837,7 +801,7 @@ public partial class MainWindow: INotifyPropertyChanged {
 			e.GetPosition(MainInkCanvas);
 			if (_lastStroke != null) {
 				var collection = new StrokeCollection { _lastStroke };
-				Push(_history, new StrokesHistoryNode(collection, StrokesHistoryNodeType.Added));
+				_history.Push(new StrokesHistoryNode(collection, StrokesHistoryNodeType.Added));
 			}
 		}
 		_isMoving = false;
