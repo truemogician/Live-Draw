@@ -5,44 +5,29 @@
 		<OutputType>WinExe</OutputType>
 		<RootNamespace>AntFu7.LiveDraw</RootNamespace>
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-		<UseWindowsForms>true</UseWindowsForms>
 		<UseWPF>true</UseWPF>
+		<UseWindowsForms>true</UseWindowsForms>
 		<Configurations>Debug;Release</Configurations>
 	</PropertyGroup>
 	<PropertyGroup>
 		<ApplicationIcon>Rescoures\Icon.ico</ApplicationIcon>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<NoWarn>1701;1702;CA1416</NoWarn>
 	</PropertyGroup>
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+	<PropertyGroup Condition="'$(Configuration)'=='Release'">
 		<PlatformTarget>AnyCPU</PlatformTarget>
 		<WarningLevel>4</WarningLevel>
 		<DebugType>embedded</DebugType>
 		<DebugSymbols>true</DebugSymbols>
 	</PropertyGroup>
 	<ItemGroup>
-		<None Remove="App.config" />
-	</ItemGroup>
-	<ItemGroup>
 		<AppDesigner Include="Properties\" />
-	</ItemGroup>
-	<ItemGroup>
-		<Resource Include="Rescoures\Icon.ico" />
-	</ItemGroup>
-	<ItemGroup>
-		<Resource Include="Rescoures\save29.png" />
-		<Resource Include="Rescoures\undo6.png" />
-	</ItemGroup>
-	<ItemGroup>
-		<Compile Update="Properties\Settings.Designer.cs">
-			<DesignTimeSharedInput>True</DesignTimeSharedInput>
-			<AutoGen>True</AutoGen>
-			<DependentUpon>Settings.settings</DependentUpon>
-		</Compile>
-	</ItemGroup>
-	<ItemGroup>
 		<None Update="Properties\Settings.settings">
 			<Generator>SettingsSingleFileGenerator</Generator>
 			<LastGenOutput>Settings.Designer.cs</LastGenOutput>
 		</None>
+	</ItemGroup>
+	<ItemGroup>
+		<Resource Include="Rescoures\*" />
 	</ItemGroup>
 </Project>
