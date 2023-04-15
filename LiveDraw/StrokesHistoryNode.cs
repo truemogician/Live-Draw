@@ -1,20 +1,20 @@
 ﻿using System.Windows.Ink;
 
-namespace AntFu7.LiveDraw {
-	public enum StrokesHistoryNodeType {
-		Removed,
+namespace AntFu7.LiveDraw; 
 
-		Added
-	}
+public enum StrokesHistoryNodeType {
+	Removed,
 
-	internal class StrokesHistoryNode {
-		public StrokeCollection Strokes { get; private set; }
+	Added
+}
 
-		public StrokesHistoryNodeType Type { get; private set; }
+internal class StrokesHistoryNode {
+	public StrokeCollection Strokes { get; private set; }
 
-		public StrokesHistoryNode(StrokeCollection strokes, StrokesHistoryNodeType type) {
-			Strokes = strokes;
-			Type = type;
-		}
+	public StrokesHistoryNodeType Type { get; private set; }
+
+	public StrokesHistoryNode(StrokeCollection strokes, StrokesHistoryNodeType type) {
+		Strokes = strokes;
+		Type = type;
 	}
 }
