@@ -210,11 +210,11 @@
                                 <WrapPanel.Resources>
                                     <Style TargetType="local:ActivatableButton" BasedOn="{StaticResource FunctionalButton}">
                                         <Setter Property="Padding" Value="0" />
-                                        <Setter Property="Width" Value="32" />
-                                        <Setter Property="Height" Value="32" />
+                                        <Setter Property="Width" Value="30" />
+                                        <Setter Property="Height" Value="30" />
                                         <Setter Property="RenderTransform">
                                             <Setter.Value>
-                                                <RotateTransform CenterX="16" CenterY="15" Angle="{Binding MinWidth, ElementName=Palette}" />
+                                                <RotateTransform CenterX="15" CenterY="15" Angle="{Binding MinWidth, ElementName=Palette}" />
                                             </Setter.Value>
                                         </Setter>
                                     </Style>
@@ -233,6 +233,12 @@
                                             <RotateTransform Angle="-45" />
                                         </Path.RenderTransform>
                                     </Path>
+                                </local:ActivatableButton>
+                                <local:ActivatableButton IsEnabled="{Binding EnableDrawing}" 
+                                                         IsActivated="{Binding ParabolaMode, Mode=TwoWay}"
+                                                         ToolTip="Parabola Mode"
+                                                         Click="ToggleButton_Click">
+                                    <Path Data="{DynamicResource IconParabola}" />
                                 </local:ActivatableButton>
                                 <local:ActivatableButton x:Name="EraserButton" 
                                                          IsEnabled="{Binding EnableDrawing}"

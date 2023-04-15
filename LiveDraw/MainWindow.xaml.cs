@@ -17,6 +17,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using AntFu7.LiveDraw.Properties;
 using Brush = System.Windows.Media.Brush;
 using Point = System.Windows.Point;
 using Screen = System.Windows.Forms.Screen;
@@ -26,10 +27,12 @@ namespace AntFu7.LiveDraw;
 public enum PenMode : byte {
 	Arbitrary,
 
-	Line
+	Line,
+
+	Parabola
 }
 
-public partial class MainWindow: INotifyPropertyChanged {
+public partial class MainWindow : INotifyPropertyChanged {
 	private static readonly Mutex mutex = new(true, "LiveDraw");
 
 	private static readonly Duration Duration1 = (Duration)Application.Current.Resources["Duration1"];
@@ -48,7 +51,7 @@ public partial class MainWindow: INotifyPropertyChanged {
 
 	public event PropertyChangedEventHandler PropertyChanged;
 
-	protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null) 
+	protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
 		=> PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
 	protected bool SetField<T>(ref T field, T value, [CallerMemberName] string propertyName = null) {
@@ -227,8 +230,8 @@ public partial class MainWindow: INotifyPropertyChanged {
 			if (value) {
 				StaticInfo = "Eraser Mode";
 				MainInkCanvas.UseCustomCursor = false;
-                MainInkCanvas.EditingMode = InkCanvasEditingMode.EraseByStroke;
-            }
+				MainInkCanvas.EditingMode = InkCanvasEditingMode.EraseByStroke;
+			}
 			else
 				SyncStatus();
 		}
@@ -271,6 +274,8 @@ public partial class MainWindow: INotifyPropertyChanged {
 
 	#region /---------IO---------/
 	private StrokeCollection _preLoadStrokes;
+
+	private static string GenerateFileName(string fileExt = ".fdw") => DateTime.Now.ToString("yyyyMMdd-HHmmss") + fileExt;
 
 	private void QuickSave(string filename = "QuickSave_") => Save(new FileStream("Save\\" + filename + GenerateFileName(), FileMode.OpenOrCreate));
 
@@ -318,10 +323,6 @@ public partial class MainWindow: INotifyPropertyChanged {
 	}
 	#endregion
 
-	#region /---------Generator---------/
-	private static string GenerateFileName(string fileExt = ".fdw") => DateTime.Now.ToString("yyyyMMdd-HHmmss") + fileExt;
-	#endregion
-
 	#region /---------Helper---------/
 	private string _staticInfo = "";
 
@@ -344,7 +345,7 @@ public partial class MainWindow: INotifyPropertyChanged {
 				await Task.Delay(duration);
 				_displayingInfo = false;
 				InfoBox.Text = StaticInfo;
-            }
+			}
 		);
 	}
 
@@ -378,23 +379,25 @@ public partial class MainWindow: INotifyPropertyChanged {
 			MainInkCanvas.UseCustomCursor = false;
 		}
 		else {
-			StaticInfo =$"{Enum.GetName(PenMode)} Mode";
+			StaticInfo = $"{Enum.GetName(PenMode)} Mode";
 			MainInkCanvas.EditingMode = InkCanvasEditingMode.None;
 			MainInkCanvas.UseCustomCursor = true;
 		}
 	}
 
+	private static double ScreenScale => Math.Max(
+		Screen.PrimaryScreen!.Bounds.Width / SystemParameters.PrimaryScreenWidth,
+		Screen.PrimaryScreen.Bounds.Height / SystemParameters.PrimaryScreenHeight
+    );
+
 	private void AdjustWindowSize() {
 		var primaryArea = Screen.PrimaryScreen!.WorkingArea;
-		var scaleRatio = Math.Max(
-			primaryArea.Width / SystemParameters.PrimaryScreenWidth,
-			primaryArea.Height / SystemParameters.PrimaryScreenHeight
-		);
+		var scaleRatio = ScreenScale;
 		Left = Screen.AllScreens.Min(s => s.WorkingArea.Left) / scaleRatio;
 		Top = Screen.AllScreens.Min(s => s.WorkingArea.Top) / scaleRatio;
 		Width = Screen.AllScreens.Max(s => s.WorkingArea.Right) / scaleRatio - Left;
 		Height = Screen.AllScreens.Max(s => s.WorkingArea.Bottom) / scaleRatio - Top;
-			
+
 		Canvas.SetTop(Palette, (primaryArea.Top + primaryArea.Height / 2.0) / scaleRatio - Top - Palette.ActualHeight / 2);
 		Canvas.SetLeft(Palette, (primaryArea.Left + primaryArea.Width / 2.0) / scaleRatio - Left - Palette.ActualWidth / 2);
 	}
@@ -411,7 +414,7 @@ public partial class MainWindow: INotifyPropertyChanged {
 
 	public bool CanRedo => _redoHistory.Count != 0;
 
-    private void Undo() {
+	private void Undo() {
 		if (!CanUndo)
 			return;
 		var last = _history.Pop();
@@ -442,7 +445,7 @@ public partial class MainWindow: INotifyPropertyChanged {
 			return;
 		_saved = false;
 		var oldStatus = (CanUndo, CanRedo);
-        if (e.Added.Count != 0)
+		if (e.Added.Count != 0)
 			_history.Push(new StrokesHistoryNode(e.Added, StrokesHistoryNodeType.Added));
 		if (e.Removed.Count != 0)
 			_history.Push(new StrokesHistoryNode(e.Removed, StrokesHistoryNodeType.Removed));
@@ -509,10 +512,16 @@ public partial class MainWindow: INotifyPropertyChanged {
 	}
 
 	private void MainInkCanvas_MouseWheel(object sender, MouseWheelEventArgs e) {
-		if (e.Delta < 0)
-			--BrushIndex;
-		else
-			++BrushIndex;
+		if (ParabolaMode) {
+			AdjustParabolaFactor(e.Delta / 30);
+			MakeLine(sender);
+		}
+		else {
+			if (e.Delta < 0)
+				--BrushIndex;
+			else
+				++BrushIndex;
+		}
 	}
 
 	private void ToggleButton_Click(object sender, RoutedEventArgs e) {
@@ -520,7 +529,7 @@ public partial class MainWindow: INotifyPropertyChanged {
 			btn.IsActivated = !btn.IsActivated;
 	}
 
-    private void BrushSwitchButton_Click(object sender, RoutedEventArgs e) => ++BrushIndex;
+	private void BrushSwitchButton_Click(object sender, RoutedEventArgs e) => ++BrushIndex;
 
 	private void UndoButton_Click(object sender, RoutedEventArgs e) => Undo();
 
@@ -763,7 +772,9 @@ public partial class MainWindow: INotifyPropertyChanged {
 
 	private Point _startPoint;
 
-	private Stroke _lastStroke;
+	private Point _endPoint;
+
+	private StrokeCollection _lastStrokes = new();
 
 	public PenMode PenMode {
 		get => _penMode;
@@ -774,6 +785,8 @@ public partial class MainWindow: INotifyPropertyChanged {
 			SetField(ref _penMode, value);
 			if (value == PenMode.Line || oldValue == PenMode.Line)
 				OnPropertyChanged(nameof(LineMode));
+			if (value == PenMode.Parabola || oldValue == PenMode.Parabola)
+				OnPropertyChanged(nameof(ParabolaMode));
 			SyncStatus();
 		}
 	}
@@ -789,48 +802,100 @@ public partial class MainWindow: INotifyPropertyChanged {
 		}
 	}
 
+	public bool ParabolaMode {
+		get => PenMode == PenMode.Parabola;
+		set {
+			if (ParabolaMode == value)
+				return;
+			PenMode = value ? PenMode.Parabola : PenMode.Arbitrary;
+			if (value)
+				EraserMode = false;
+		}
+	}
+
+	private static Stroke CreateStroke(DrawingAttributes attributes, params Point[] points) => 
+		new(new StylusPointCollection(points)) { DrawingAttributes = attributes };
+
 	private void StartLine(object sender, MouseButtonEventArgs e) {
 		_isMoving = true;
 		_startPoint = e.GetPosition(MainInkCanvas);
-		_lastStroke = null;
+		_lastStrokes = new StrokeCollection();
 		_ignoreStrokesChange = true;
 	}
 
 	private void EndLine(object sender, MouseButtonEventArgs e) {
 		if (_isMoving) {
 			e.GetPosition(MainInkCanvas);
-			if (_lastStroke != null) {
-				var collection = new StrokeCollection { _lastStroke };
-				_history.Push(new StrokesHistoryNode(collection, StrokesHistoryNodeType.Added));
-			}
+			if (_lastStrokes.Count > 0)
+				_history.Push(new StrokesHistoryNode(_lastStrokes, StrokesHistoryNodeType.Added));
 		}
 		_isMoving = false;
 		_ignoreStrokesChange = false;
 	}
 
+	private MouseEventArgs _lastMouseMove;
+
+	private void MakeLine(object sender) => MakeLine(sender, _lastMouseMove);
+
 	private void MakeLine(object sender, MouseEventArgs e) {
-		if (_isMoving == false)
+		if (!_isMoving)
 			return;
+		_lastMouseMove = e;
+		_endPoint = e.GetPosition(MainInkCanvas);
+        var style = MainInkCanvas.DefaultDrawingAttributes.Clone();
+		style.StylusTip = StylusTip.Ellipse;
+		style.IgnorePressure = true;
+		if (_lastStrokes.Count > 0) {
+			MainInkCanvas.Strokes.Remove(_lastStrokes);
+			_lastStrokes.Clear();
+		}
+		switch (PenMode) {
+			case PenMode.Line: {
+				_lastStrokes.Add(CreateStroke(style, _startPoint, _endPoint));
+				break;
+			}
+			case PenMode.Parabola: {
+				var o = _startPoint;
+				var v = _endPoint - o;
+				var k = Settings.Default.ParabolaFactor;
+				if (Math.Abs(v.X) < double.Epsilon) {
+					var topPoint = v.Y >= 0 ? o : o with { Y = Math.Max(Top, o.Y - v.Y * v.Y / 2 / k) };
+					var bottomPoint = o with { Y = Top + Height };
+					_lastStrokes.Add(CreateStroke(style, topPoint, bottomPoint));
+				}
+				else {
+					var a = k / (2 * v.X * v.X);
+					var b = v.Y / v.X - k * o.X / (v.X * v.X);
+					var c = a * o.X * o.X - o.X * v.Y / v.X + o.Y;
+					var points = new StylusPointCollection(new[] { _startPoint });
+					var delta = v.X < 0 ? - Math.PI / 180 : Math.PI / 180;
+					for (double theta = Math.Atan(v.Y / v.X) + delta; theta is >= -Math.PI and <= Math.PI; theta += delta) {
+						var x = (Math.Tan(theta) - b) / (2 * a);
+						if (x < 0 || x > Width)
+							break;
+						if (points.Count > 1 && Math.Abs(points[^1].X - x) < 1)
+							continue;
+						var y = (a * x + b) * x + c;
+						points.Add(new StylusPoint(x, y));
+						if (y > Top + Height)
+							break;
+					}
+					_lastStrokes.Add(new Stroke(points, style));
+					_lastStrokes.Add(CreateStroke(style, _startPoint, _endPoint));
+				}
+				break;
+			}
+		}
+		MainInkCanvas.Strokes.Add(_lastStrokes);
+	}
 
-		var newLine = MainInkCanvas.DefaultDrawingAttributes.Clone();
-		newLine.StylusTip = StylusTip.Ellipse;
-		newLine.IgnorePressure = true;
-
-		var endPoint = e.GetPosition(MainInkCanvas);
-
-		var pList = new List<Point> {
-			new(_startPoint.X, _startPoint.Y),
-			new(endPoint.X, endPoint.Y)
-		};
-
-		var point = new StylusPointCollection(pList);
-		var stroke = new Stroke(point) { DrawingAttributes = newLine };
-
-		if (_lastStroke != null)
-			MainInkCanvas.Strokes.Remove(_lastStroke);
-		MainInkCanvas.Strokes.Add(stroke);
-
-		_lastStroke = stroke;
+	void AdjustParabolaFactor(int delta) {
+		var n = _endPoint.Y - _startPoint.Y;
+		var peak = n * n / 2 / Settings.Default.ParabolaFactor;
+		if (peak * delta < 0 && Math.Abs(peak) <= Math.Abs(delta))
+			return;
+		Settings.Default.ParabolaFactor = n * n / 2 / (peak + delta);
+		Settings.Default.Save();
 	}
 	#endregion
 }
