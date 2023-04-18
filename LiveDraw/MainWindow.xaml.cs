@@ -529,6 +529,15 @@ public partial class MainWindow : INotifyPropertyChanged {
 			btn.IsActivated = !btn.IsActivated;
 	}
 
+	private void ParabolaModeButton_Click(object sender, RoutedEventArgs e) {
+		if (!ParabolaMode)
+			ParabolaMode = true;
+		else if (!ReversedParabola)
+			ReversedParabola = true;
+		else
+			ReversedParabola = ParabolaMode = false;
+	}
+
 	private void BrushSwitchButton_Click(object sender, RoutedEventArgs e) => ++BrushIndex;
 
 	private void UndoButton_Click(object sender, RoutedEventArgs e) => Undo();
@@ -768,6 +777,8 @@ public partial class MainWindow : INotifyPropertyChanged {
 	#region /---------Line Mode---------/
 	private PenMode _penMode = PenMode.Arbitrary;
 
+	private bool _reversedParabola;
+
 	private bool _isMoving;
 
 	private Point _startPoint;
@@ -810,6 +821,16 @@ public partial class MainWindow : INotifyPropertyChanged {
 			PenMode = value ? PenMode.Parabola : PenMode.Arbitrary;
 			if (value)
 				EraserMode = false;
+		}
+	}
+
+	private bool ReversedParabola {
+		get => _reversedParabola;
+		set {
+			if (_reversedParabola == value)
+				return;
+			ParabolaModeButtonIconRotateTransform.Angle = value ? 0 : 180;
+			SetField(ref _reversedParabola, value);
 		}
 	}
 
@@ -864,11 +885,12 @@ public partial class MainWindow : INotifyPropertyChanged {
 					_lastStrokes.Add(CreateStroke(style, topPoint, bottomPoint));
 				}
 				else {
-					var a = k / (2 * v.X * v.X);
-					var b = v.Y / v.X - k * o.X / (v.X * v.X);
+					var reversed = ReversedParabola ? -1 : 1;
+					var a = k / (2 * v.X * v.X) * reversed;
+					var b = v.Y / v.X - k * o.X / (v.X * v.X) * reversed;
 					var c = a * o.X * o.X - o.X * v.Y / v.X + o.Y;
 					var points = new StylusPointCollection(new[] { _startPoint });
-					var delta = v.X < 0 ? - Math.PI / 180 : Math.PI / 180;
+					var delta = (v.X < 0) ^ ReversedParabola ? -Math.PI / 180 : Math.PI / 180;
 					for (double theta = Math.Atan(v.Y / v.X) + delta; theta is >= -Math.PI and <= Math.PI; theta += delta) {
 						var x = (Math.Tan(theta) - b) / (2 * a);
 						if (x < 0 || x > Width)
@@ -877,7 +899,7 @@ public partial class MainWindow : INotifyPropertyChanged {
 							continue;
 						var y = (a * x + b) * x + c;
 						points.Add(new StylusPoint(x, y));
-						if (y > Top + Height)
+						if (y < 0 || y > Top + Height)
 							break;
 					}
 					_lastStrokes.Add(new Stroke(points, style));
@@ -889,7 +911,7 @@ public partial class MainWindow : INotifyPropertyChanged {
 		MainInkCanvas.Strokes.Add(_lastStrokes);
 	}
 
-	void AdjustParabolaFactor(int delta) {
+	private void AdjustParabolaFactor(int delta) {
 		var n = _endPoint.Y - _startPoint.Y;
 		var peak = n * n / 2 / Settings.Default.ParabolaFactor;
 		if (peak * delta < 0 && Math.Abs(peak) <= Math.Abs(delta))

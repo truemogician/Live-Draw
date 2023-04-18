@@ -237,8 +237,14 @@
                                 <local:ActivatableButton IsEnabled="{Binding EnableDrawing}" 
                                                          IsActivated="{Binding ParabolaMode, Mode=TwoWay}"
                                                          ToolTip="Parabola Mode"
-                                                         Click="ToggleButton_Click">
-                                    <Path Data="{DynamicResource IconParabola}" />
+                                                         Click="ParabolaModeButton_Click">
+                                    <Path Data="{DynamicResource IconParabola}"
+                                          Stroke="{StaticResource FunctionalButtonForeground}"
+                                          StrokeThickness="2">
+                                        <Path.RenderTransform>
+                                            <RotateTransform x:Name="ParabolaModeButtonIconRotateTransform" Angle="180" />
+                                        </Path.RenderTransform>
+                                    </Path>
                                 </local:ActivatableButton>
                                 <local:ActivatableButton x:Name="EraserButton" 
                                                          IsEnabled="{Binding EnableDrawing}"
